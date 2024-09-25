@@ -29,7 +29,7 @@ relevantColumns = ["Player"] + stats_categories
 draft_columns = ["Team"] + relevantColumns
 
 # Load data
-@st.cache
+@st.cache_data
 def loadPlayerProjStats(uploaded_file):       
     dfPlayerProjStats = pd.read_csv(uploaded_file)
     dfPlayerProjStats = dfPlayerProjStats[relevantColumns]
@@ -145,7 +145,7 @@ def getMyTeamRankings(playerIndexLst, dfDraft, dfPlayerProjStats, myTeamName, df
 
     return dfMyTeamRankings
 
-def simulate_picks_up_to_my_turn(dfDraft, dfPlayerProjStats, teamPlayerCountDct):
+def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mode):
     while True:
         pick_number = st.session_state.pick_number
         # Determine which team's turn it is
@@ -156,13 +156,31 @@ def simulate_picks_up_to_my_turn(dfDraft, dfPlayerProjStats, teamPlayerCountDct)
             # It's our turn, break the loop
             break
         else:
-            # Simulate pick for other team
+            # Simulate or manually pick for other team
             available_players = dfPlayerProjStats[~dfPlayerProjStats['Player'].isin(dfDraft['Player'])]
             if len(available_players) == 0:
                 st.write("No more available players.")
                 return
-            # Pick the top available player
-            player_index = available_players.index[0]
+            if mode == "Automatic Simulation":
+                # Pick the top available player
+                player_index = available_players.index[0]
+                selected_player = available_players.iloc[0]['Player']
+            else:
+                st.subheader(f"{team_name}'s Turn to Pick")
+                # Show top available players
+                top_available_players = available_players.head(20)
+                st.write("Top Available Players for Other Teams:")
+                st.dataframe(top_available_players)
+                # Allow user to select a player for the other team
+                player_names = top_available_players['Player'].tolist()
+                selected_player = st.selectbox(f"Select a player for {team_name}:", player_names, key=f"select_{pick_number}")
+                # Wait for user to select and confirm
+                if not st.button(f"Confirm selection for {team_name}", key=f"button_{pick_number}"):
+                    return  # Wait until user makes a selection
+                # Find the index of the selected player
+                player_index = dfPlayerProjStats[dfPlayerProjStats['Player'] == selected_player].index[0]
+
+            # Update the draft
             dfDraft = updateDraft(dfDraft, team_name, dfPlayerProjStats, player_index)
             teamPlayerCountDct[team_name] += 1
 
@@ -172,6 +190,9 @@ def simulate_picks_up_to_my_turn(dfDraft, dfPlayerProjStats, teamPlayerCountDct)
 
 # Streamlit App
 st.title("Fantasy Basketball Draft Simulator")
+
+# Select mode
+mode = st.selectbox("Select Draft Mode:", ["Automatic Simulation", "Manual Input"], index=0)
 
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
@@ -187,11 +208,12 @@ if uploaded_file is not None:
     if 'pick_number' not in st.session_state:
         st.session_state.pick_number = 0
 
-    # Simulate picks up to user's turn
-    simulate_picks_up_to_my_turn(
+    # Simulate or manually pick for other teams up to user's turn
+    simulate_or_manual_picks(
         st.session_state.dfDraft,
         dfPlayerProjStats,
         st.session_state.teamPlayerCountDct,
+        mode,
     )
 
     st.subheader("Your Turn to Pick")
@@ -249,11 +271,12 @@ if uploaded_file is not None:
         # Success message
         st.success(f"You have drafted {selected_player}.")
 
-        # Simulate picks up to next user turn
-        simulate_picks_up_to_my_turn(
+        # Simulate or manually pick for other teams up to next user turn
+        simulate_or_manual_picks(
             st.session_state.dfDraft,
             dfPlayerProjStats,
             st.session_state.teamPlayerCountDct,
+            mode,
         )
 
     # Display user's team
@@ -266,6 +289,11 @@ if uploaded_file is not None:
     dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
     st.subheader("Current Team Rankings:")
     st.dataframe(dfRankings)
+
+    # Optionally display the full draft
+    if st.checkbox("Show Full Draft Results"):
+        st.subheader("Full Draft Results:")
+        st.dataframe(st.session_state.dfDraft)
 
 else:
     st.info("Please upload a player projection CSV file to start the simulation.")
