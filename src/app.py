@@ -5,23 +5,10 @@ import streamlit as st
 import random
 
 # Definitions
-myTeamName = "Team 7"
-
 numTeams = 8
 numPlayersPerTeam = 13
 
-# Teams
-ROTO8_DRAFT_ORDER = [
-    "Team 1",
-    "Team 2",
-    "Team 3",
-    "Team 4",
-    "Team 5",
-    "Team 6",
-    "Team 7",
-    "Team 8",
-]
-
+# Summary and Average Stats
 SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "TO", "3PTM"]
 AVERAGE_STATS = ["FG%", "FT%"]
 
@@ -75,16 +62,16 @@ def getTeamDraftStats(dfDraft, teamName):
         'BLK': dfTeamDraft['BLK'].sum(),
         'TO': dfTeamDraft['TO'].sum(),
         '3PTM': dfTeamDraft['3PTM'].sum(),
-        'FG%': dfTeamDraft['FG%'].mean(),
-        'FT%': dfTeamDraft['FT%'].mean(),
+        'FG%': dfTeamDraft['FG%'].mean() if not dfTeamDraft.empty else 0,
+        'FT%': dfTeamDraft['FT%'].mean() if not dfTeamDraft.empty else 0,
     }
 
     dfTeamDraftStats = pd.DataFrame([statsRow], columns=["Team"] + relevantColumns)
     return dfTeamDraftStats
 
-def getAllTeamsDraftStats(dfDraft):
+def getAllTeamsDraftStats(dfDraft, team_order):
     dfTeamStats = pd.DataFrame(columns=["Team"] + relevantColumns)
-    for teamName in ROTO8_DRAFT_ORDER:
+    for teamName in team_order:
         dfTeamStats = pd.concat([dfTeamStats, getTeamDraftStats(dfDraft, teamName)], ignore_index=True)
     return dfTeamStats
 
@@ -110,23 +97,23 @@ def getTeamRankings(dfTeamStats, myTeamName):
 
     return dfRankings
 
-def evaluateSelection(dfDraft, dfPlayerProjStats, myTeamName, playerIndex):
+def evaluateSelection(dfDraft, dfPlayerProjStats, myTeamName, playerIndex, team_order):
     # Update the draft dataframe with the new player
     dfDraft = updateDraft(dfDraft.copy(), myTeamName, dfPlayerProjStats, playerIndex)
     # Calculate the total score for each team
-    dfTeamStats = getAllTeamsDraftStats(dfDraft)
+    dfTeamStats = getAllTeamsDraftStats(dfDraft, team_order)
     dfRankings = getTeamRankings(dfTeamStats, myTeamName)
     return dfRankings
 
-def evaluateSelections(dfDraft, dfPlayerProjStats, myTeamName, playerIndexLst):
+def evaluateSelections(dfDraft, dfPlayerProjStats, myTeamName, playerIndexLst, team_order):
     dctSelectionsRankings = {}
     for playerIndex in playerIndexLst:
-        dfRankings = evaluateSelection(dfDraft.copy(), dfPlayerProjStats, myTeamName, playerIndex)
+        dfRankings = evaluateSelection(dfDraft.copy(), dfPlayerProjStats, myTeamName, playerIndex, team_order)
         dctSelectionsRankings[playerIndex] = dfRankings
     return dctSelectionsRankings
 
-def getMyTeamRankings(playerIndexLst, dfDraft, dfPlayerProjStats, myTeamName, dfRankings):
-    dctSelectionsRankings = evaluateSelections(dfDraft.copy(), dfPlayerProjStats, myTeamName, playerIndexLst)
+def getMyTeamRankings(playerIndexLst, dfDraft, dfPlayerProjStats, myTeamName, dfRankings, team_order):
+    dctSelectionsRankings = evaluateSelections(dfDraft.copy(), dfPlayerProjStats, myTeamName, playerIndexLst, team_order)
     dfMyTeamRankings = pd.DataFrame(columns=dctSelectionsRankings[playerIndexLst[0]].columns)
 
     # Iterate over the dictionary and get the rankings for each player selection
@@ -146,14 +133,28 @@ def getMyTeamRankings(playerIndexLst, dfDraft, dfPlayerProjStats, myTeamName, df
 
     return dfMyTeamRankings
 
-def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mode):
+def generate_snake_draft_order(num_teams, num_rounds):
+    order = []
+    teams = list(range(num_teams))
+    for round_num in range(num_rounds):
+        if round_num % 2 == 0:
+            # Normal order
+            order.extend(teams)
+        else:
+            # Reversed order
+            order.extend(reversed(teams))
+    return order
+
+def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mode, myTeamIndex, snake_draft_order, team_order):
     while True:
         pick_number = st.session_state.pick_number
-        # Determine which team's turn it is
-        team_index = pick_number % len(ROTO8_DRAFT_ORDER)
-        team_name = ROTO8_DRAFT_ORDER[team_index]
+        if pick_number >= len(snake_draft_order):
+            st.write("Draft is complete.")
+            return
+        team_index = snake_draft_order[pick_number]
+        team_name = team_order[team_index]
 
-        if team_name == myTeamName:
+        if team_index == myTeamIndex:
             # It's our turn, break the loop
             break
         else:
@@ -200,113 +201,157 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
 # Streamlit App
 st.title("Fantasy Basketball Draft Simulator")
 
-# Select mode
-mode = st.selectbox(
-    "Select Draft Mode for Other Teams:",
-    ["Automatic - Top Pick", "Automatic - Random from Top 5", "Manual Input"],
-    index=0
-)
-
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
 
 if uploaded_file is not None:
     dfPlayerProjStats = loadPlayerProjStats(uploaded_file)
 
-    # Initialize session state variables
-    if 'dfDraft' not in st.session_state:
-        st.session_state.dfDraft = pd.DataFrame(columns=draft_columns)
-    if 'teamPlayerCountDct' not in st.session_state:
-        st.session_state.teamPlayerCountDct = {team: 0 for team in ROTO8_DRAFT_ORDER}
-    if 'pick_number' not in st.session_state:
-        st.session_state.pick_number = 0
+    # Select your team's draft position
+    myTeamIndex = st.number_input(
+        f"Select your team's draft position (1-{numTeams}):",
+        min_value=1,
+        max_value=numTeams,
+        value=1,
+        step=1
+    ) - 1  # Zero-based index
 
-    # Simulate or manually pick for other teams up to user's turn
-    simulate_or_manual_picks(
-        st.session_state.dfDraft,
-        dfPlayerProjStats,
-        st.session_state.teamPlayerCountDct,
-        mode,
+    # Select mode
+    mode = st.selectbox(
+        "Select Draft Mode for Other Teams:",
+        ["Automatic - Top Pick", "Automatic - Random from Top 5", "Manual Input"],
+        index=0
     )
 
-    st.subheader("Your Turn to Pick")
+    # Start Draft button
+    if st.button("Start Draft") or 'draft_started' in st.session_state:
+        if 'draft_started' not in st.session_state:
+            st.session_state.draft_started = True
 
-    # Get available players
-    available_players = dfPlayerProjStats[
-        ~dfPlayerProjStats['Player'].isin(st.session_state.dfDraft['Player'])
-    ]
+            # Initialize team names
+            team_order = [f"Team {i+1}" for i in range(numTeams)]
+            myTeamName = team_order[myTeamIndex]
+            st.session_state.myTeamName = myTeamName
+            st.session_state.myTeamIndex = myTeamIndex
+            st.session_state.team_order = team_order
 
-    # Show top 20 available players
-    top_available_players = available_players.head(20)
-    st.write("Top Available Players:")
-    st.dataframe(top_available_players)
+            # Initialize team player counts
+            st.session_state.teamPlayerCountDct = {team: 0 for team in team_order}
 
-    # Allow user to select a player
-    player_names = top_available_players['Player'].tolist()
-    selected_player = st.selectbox('Select a player to draft:', player_names)
+            # Initialize the draft dataframe
+            st.session_state.dfDraft = pd.DataFrame(columns=draft_columns)
 
-    # Evaluate potential selections
-    playerIndexLst = top_available_players.index.tolist()
-    dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft)
-    dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
-    dfMyTeamRankings = getMyTeamRankings(
-        playerIndexLst,
-        st.session_state.dfDraft,
-        dfPlayerProjStats,
-        myTeamName,
-        dfRankings,
-    )
+            # Initialize pick number
+            st.session_state.pick_number = 0
 
-    st.write("Potential Team Rankings for Possible Selections:")
-    st.dataframe(dfMyTeamRankings)
+            # Generate snake draft order
+            total_picks = numTeams * numPlayersPerTeam
+            num_rounds = total_picks // numTeams
+            snake_draft_order = generate_snake_draft_order(numTeams, num_rounds)
+            st.session_state.snake_draft_order = snake_draft_order
 
-    if st.button('Draft Player'):
-        # Find the index of the selected player in dfPlayerProjStats
-        player_index = dfPlayerProjStats[dfPlayerProjStats['Player'] == selected_player].index[0]
+        # Proceed with the draft
+        myTeamName = st.session_state.myTeamName
+        myTeamIndex = st.session_state.myTeamIndex
+        team_order = st.session_state.team_order
 
-        # Update the draft
-        dfDraft = updateDraft(
-            st.session_state.dfDraft,
-            myTeamName,
-            dfPlayerProjStats,
-            player_index,
-        )
-        st.session_state.dfDraft = dfDraft
-
-        # Update team player count
-        teamPlayerCountDct = st.session_state.teamPlayerCountDct
-        teamPlayerCountDct[myTeamName] += 1
-        st.session_state.teamPlayerCountDct = teamPlayerCountDct
-
-        # Update pick number
-        st.session_state.pick_number += 1
-
-        # Success message
-        st.success(f"You have drafted {selected_player}.")
-
-        # Simulate or manually pick for other teams up to next user turn
+        # Simulate or manually pick for other teams up to user's turn
         simulate_or_manual_picks(
             st.session_state.dfDraft,
             dfPlayerProjStats,
             st.session_state.teamPlayerCountDct,
             mode,
+            myTeamIndex,
+            st.session_state.snake_draft_order,
+            team_order,
         )
 
-    # Display user's team
-    dfMyTeamDraft = getTeamDraft(st.session_state.dfDraft, myTeamName)
-    st.subheader("Your Team:")
-    st.dataframe(dfMyTeamDraft)
+        st.subheader("Your Turn to Pick")
 
-    # Display team rankings
-    dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft)
-    dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
-    st.subheader("Current Team Rankings:")
-    st.dataframe(dfRankings)
+        # Get available players
+        available_players = dfPlayerProjStats[
+            ~dfPlayerProjStats['Player'].isin(st.session_state.dfDraft['Player'])
+        ]
 
-    # Optionally display the full draft
-    if st.checkbox("Show Full Draft Results"):
-        st.subheader("Full Draft Results:")
-        st.dataframe(st.session_state.dfDraft)
+        if not available_players.empty:
+            # Show top 20 available players
+            top_available_players = available_players.head(20)
+            st.write("Top Available Players:")
+            st.dataframe(top_available_players)
 
+            # Allow user to select a player
+            player_names = top_available_players['Player'].tolist()
+            selected_player = st.selectbox('Select a player to draft:', player_names)
+
+            # Evaluate potential selections
+            playerIndexLst = top_available_players.index.tolist()
+            dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft, team_order)
+            dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
+            dfMyTeamRankings = getMyTeamRankings(
+                playerIndexLst,
+                st.session_state.dfDraft,
+                dfPlayerProjStats,
+                myTeamName,
+                dfRankings,
+                team_order,
+            )
+
+            st.write("Potential Team Rankings for Possible Selections:")
+            st.dataframe(dfMyTeamRankings)
+
+            if st.button('Draft Player'):
+                # Find the index of the selected player in dfPlayerProjStats
+                player_index = dfPlayerProjStats[dfPlayerProjStats['Player'] == selected_player].index[0]
+
+                # Update the draft
+                dfDraft = updateDraft(
+                    st.session_state.dfDraft,
+                    myTeamName,
+                    dfPlayerProjStats,
+                    player_index,
+                )
+                st.session_state.dfDraft = dfDraft
+
+                # Update team player count
+                teamPlayerCountDct = st.session_state.teamPlayerCountDct
+                teamPlayerCountDct[myTeamName] += 1
+                st.session_state.teamPlayerCountDct = teamPlayerCountDct
+
+                # Update pick number
+                st.session_state.pick_number += 1
+
+                # Success message
+                st.success(f"You have drafted {selected_player}.")
+
+                # Simulate or manually pick for other teams up to next user turn
+                simulate_or_manual_picks(
+                    st.session_state.dfDraft,
+                    dfPlayerProjStats,
+                    st.session_state.teamPlayerCountDct,
+                    mode,
+                    myTeamIndex,
+                    st.session_state.snake_draft_order,
+                    team_order,
+                )
+        else:
+            st.write("No more available players to draft.")
+
+        # Display user's team
+        dfMyTeamDraft = getTeamDraft(st.session_state.dfDraft, myTeamName)
+        st.subheader("Your Team:")
+        st.dataframe(dfMyTeamDraft)
+
+        # Display team rankings
+        dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft, team_order)
+        dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
+        st.subheader("Current Team Rankings:")
+        st.dataframe(dfRankings)
+
+        # Optionally display the full draft
+        if st.checkbox("Show Full Draft Results"):
+            st.subheader("Full Draft Results:")
+            st.dataframe(st.session_state.dfDraft)
+    else:
+        st.info("Press 'Start Draft' to begin.")
 else:
     st.info("Please upload a player projection CSV file to start the simulation.")
