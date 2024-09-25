@@ -206,7 +206,8 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             st.session_state.pick_number += 1
 
 # Streamlit App
-st.title("Fantasy Basketball Draft Simulator")
+st.title("🏆Amir for the win🏆")
+st.subheader("Fantasy Basketball Draft Simulator🏀")
 
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
@@ -366,8 +367,3 @@ if uploaded_file is not None:
         st.info("Press 'Start Draft' to begin.")
 else:
     st.info("Please upload a player projection CSV file to start the simulation.")
-
-if st.button("Reset Draft"):
-    for key in st.session_state.keys():
-        del st.session_state[key]
-    st.experimental_rerun()
