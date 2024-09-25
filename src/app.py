@@ -2,6 +2,7 @@ import pandas as pd
 import warnings
 warnings.filterwarnings("ignore")
 import streamlit as st
+import random
 
 # Definitions
 myTeamName = "Team 7"
@@ -161,11 +162,7 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             if len(available_players) == 0:
                 st.write("No more available players.")
                 return
-            if mode == "Automatic Simulation":
-                # Pick the top available player
-                player_index = available_players.index[0]
-                selected_player = available_players.iloc[0]['Player']
-            else:
+            if mode == "Manual Input":
                 st.subheader(f"{team_name}'s Turn to Pick")
                 # Show top available players
                 top_available_players = available_players.head(20)
@@ -179,6 +176,18 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
                     return  # Wait until user makes a selection
                 # Find the index of the selected player
                 player_index = dfPlayerProjStats[dfPlayerProjStats['Player'] == selected_player].index[0]
+            else:
+                # Automatic Simulation
+                top_n = 5 if mode == "Automatic - Random from Top 5" else 1
+                top_available_players = available_players.head(top_n)
+                if mode == "Automatic - Random from Top 5":
+                    # Randomly select from top 5 available players
+                    selected_player_row = top_available_players.sample(1)
+                else:
+                    # Select the top available player
+                    selected_player_row = top_available_players.head(1)
+                selected_player = selected_player_row.iloc[0]['Player']
+                player_index = selected_player_row.index[0]
 
             # Update the draft
             dfDraft = updateDraft(dfDraft, team_name, dfPlayerProjStats, player_index)
@@ -192,7 +201,11 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
 st.title("Fantasy Basketball Draft Simulator")
 
 # Select mode
-mode = st.selectbox("Select Draft Mode:", ["Automatic Simulation", "Manual Input"], index=0)
+mode = st.selectbox(
+    "Select Draft Mode for Other Teams:",
+    ["Automatic - Top Pick", "Automatic - Random from Top 5", "Manual Input"],
+    index=0
+)
 
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
