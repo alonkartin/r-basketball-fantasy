@@ -9,16 +9,17 @@ numTeams = 8
 numPlayersPerTeam = 13
 
 # Summary and Average Stats
-SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "TO", "3PTM"]
+SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "3PTM"]
+LOWER_BETTER_STATS = ["TO"]  # Lower stats are better for turnovers
 AVERAGE_STATS = ["FG%", "FT%"]
 
-stats_categories = SUMMARY_STATS + AVERAGE_STATS
+stats_categories = SUMMARY_STATS + LOWER_BETTER_STATS + AVERAGE_STATS
 relevantColumns = ["Player"] + stats_categories
 draft_columns = ["Team"] + relevantColumns
 
 # Load data
 @st.cache_data
-def loadPlayerProjStats(uploaded_file):       
+def loadPlayerProjStats(uploaded_file):
     dfPlayerProjStats = pd.read_csv(uploaded_file)
     dfPlayerProjStats = dfPlayerProjStats[relevantColumns]
     dfPlayerProjStats = dfPlayerProjStats.astype({
@@ -78,18 +79,24 @@ def getAllTeamsDraftStats(dfDraft, team_order):
 def getTeamRankings(dfTeamStats, myTeamName):
     dfRankings = pd.DataFrame(columns=["Team"])
     dfRankings["Team"] = dfTeamStats["Team"]
+    numTeams = len(dfTeamStats)
 
     for category in stats_categories:
-        ascending = False  # Higher stats are better
-        if category == "TO":  # For turnovers, lower is better
-            ascending = True
+        if category in LOWER_BETTER_STATS:
+            ascending = True  # Lower stats are better
+        else:
+            ascending = False  # Higher stats are better
+
+        # Compute ranks
         dfRankings["Rank_" + category] = dfTeamStats[category].rank(ascending=ascending, method='min')
+        # Adjust ranks so that higher rank numbers are better
+        dfRankings["Rank_" + category] = numTeams + 1 - dfRankings["Rank_" + category]
 
     # Calculate the total score for each team
-    dfRankings["Total Score"] = dfRankings.filter(like="Rank").sum(axis=1)
+    dfRankings["Total Score"] = dfRankings.filter(like="Rank_").sum(axis=1)
 
     # Sort by total score
-    dfRankings = dfRankings.sort_values(by="Total Score", ascending=True)
+    dfRankings = dfRankings.sort_values(by="Total Score", ascending=False)
 
     # Move my team to the top
     myTeamData = dfRankings[dfRankings["Team"] == myTeamName]
@@ -124,7 +131,7 @@ def getMyTeamRankings(playerIndexLst, dfDraft, dfPlayerProjStats, myTeamName, df
         dfMyTeamRankings = pd.concat([dfMyTeamRankings, myTeamData])
 
     # Sort by total score
-    dfMyTeamRankings = dfMyTeamRankings.sort_values(by="Total Score", ascending=True)
+    dfMyTeamRankings = dfMyTeamRankings.sort_values(by="Total Score", ascending=False)
 
     # Get my current team ranking from dfRankings
     myTeamRank = dfRankings[dfRankings["Team"] == myTeamName]
@@ -359,7 +366,6 @@ if uploaded_file is not None:
         st.info("Press 'Start Draft' to begin.")
 else:
     st.info("Please upload a player projection CSV file to start the simulation.")
-
 
 if st.button("Reset Draft"):
     for key in st.session_state.keys():
