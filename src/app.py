@@ -206,7 +206,7 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             st.session_state.pick_number += 1
 
 # Streamlit App
-st.title("🏆Amir for the win🏆")
+st.title("🏆Team Amir for the win🏆")
 st.subheader("Fantasy Basketball Draft Simulator🏀")
 
 # Upload player projection CSV file
