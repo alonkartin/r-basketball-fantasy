@@ -207,6 +207,9 @@ uploaded_file = st.file_uploader("Choose a player projection CSV file", type="cs
 if uploaded_file is not None:
     dfPlayerProjStats = loadPlayerProjStats(uploaded_file)
 
+    # Enter your team name
+    myTeamName = st.text_input("Enter your team name:", value="My Team")
+
     # Select your team's draft position
     myTeamIndex = st.number_input(
         f"Select your team's draft position (1-{numTeams}):",
@@ -230,7 +233,8 @@ if uploaded_file is not None:
 
             # Initialize team names
             team_order = [f"Team {i+1}" for i in range(numTeams)]
-            myTeamName = team_order[myTeamIndex]
+            # Replace the team at myTeamIndex with user's team name
+            team_order[myTeamIndex] = myTeamName
             st.session_state.myTeamName = myTeamName
             st.session_state.myTeamIndex = myTeamIndex
             st.session_state.team_order = team_order
@@ -355,3 +359,9 @@ if uploaded_file is not None:
         st.info("Press 'Start Draft' to begin.")
 else:
     st.info("Please upload a player projection CSV file to start the simulation.")
+
+
+if st.button("Reset Draft"):
+    for key in st.session_state.keys():
+        del st.session_state[key]
+    st.experimental_rerun()
