@@ -220,6 +220,12 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             st.session_state.teamPlayerCountDct = teamPlayerCountDct
             st.session_state.pick_number += 1
 
+st.set_page_config(
+    page_title="Fantasy Basketball Draft Simulator",
+    page_icon="🏆", 
+    layout="wide",
+)
+
 # Streamlit App
 st.title("Fantasy Basketball Draft Simulator")
 
