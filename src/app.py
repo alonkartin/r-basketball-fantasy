@@ -19,15 +19,15 @@ draft_columns = ["Team"] + relevantColumns
 
 # Predefined Target Goals
 TARGET_GOALS = {
-    "PTS": 17000,
-    "REB": 5000,
-    "AST": 4200,
-    "ST": 960,
-    "BLK": 320,
+    "PTS": 17499,
+    "REB": 6423,
+    "AST": 4048,
+    "ST": 969,
+    "BLK": 640,
     "3PTM": 1500,
-    "TO": 2020,
-    "FG%": 0.48,
-    "FT%": 0.784
+    "TO": 2097,
+    "FG%": 0.484,
+    "FT%": 0.796
 }
 
 # Load data
