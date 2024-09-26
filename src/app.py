@@ -189,8 +189,8 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
                 st.subheader(f"{team_name}'s Turn to Pick")
                 # Show top available players
                 top_available_players = available_players.head(20)
-                st.write("Top Available Players for Other Teams:")
-                st.dataframe(top_available_players)
+                # st.write("Top Available Players for Other Teams:")
+                #st.dataframe(top_available_players)
                 # Allow user to select a player for the other team
                 player_names = top_available_players['Player'].tolist()
                 selected_player = st.selectbox(f"Select a player for {team_name}:", player_names, key=f"select_{pick_number}")
@@ -302,8 +302,8 @@ if uploaded_file is not None:
         if not available_players.empty:
             # Show top 20 available players
             top_available_players = available_players.head(20)
-            st.write("Top Available Players:")
-            st.dataframe(top_available_players)
+            #st.write("Top Available Players:")
+            #st.dataframe(top_available_players)
 
             # Allow user to select a player
             player_names = top_available_players['Player'].tolist()
@@ -393,8 +393,10 @@ if uploaded_file is not None:
         # Display team rankings
         dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft, team_order)
         dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
-        st.subheader("Current Team Rankings:")
-        st.dataframe(dfRankings)
+        # Optionally display the full draft
+        if st.checkbox("Show Current Team Rankings"):
+            st.subheader("Current Team Rankings:")
+            st.dataframe(dfRankings)
 
         # Optionally display the full draft
         if st.checkbox("Show Full Draft Results"):
