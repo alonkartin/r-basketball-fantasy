@@ -17,6 +17,19 @@ stats_categories = SUMMARY_STATS + LOWER_BETTER_STATS + AVERAGE_STATS
 relevantColumns = ["Player"] + stats_categories
 draft_columns = ["Team"] + relevantColumns
 
+# Predefined Target Goals
+TARGET_GOALS = {
+    "PTS": 17000,
+    "REB": 5000,
+    "AST": 4200,
+    "ST": 960,
+    "BLK": 320,
+    "3PTM": 1500,
+    "TO": 2020,
+    "FG%": 0.48,
+    "FT%": 0.784
+}
+
 # Load data
 @st.cache_data
 def loadPlayerProjStats(uploaded_file):
@@ -46,7 +59,7 @@ def updateDraft(dfDraft, teamName, dfPlayerProjStats, playerIndex):
     return dfDraft
 
 def getTeamDraft(dfDraft, teamName):
-    dfTeamDraft = dfDraft[dfDraft["Team"] == teamName]
+    dfTeamDraft = dfDraft[dfDraft["Team"] == teamName].copy()
     return dfTeamDraft
 
 def getTeamDraftStats(dfDraft, teamName):
@@ -166,7 +179,9 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             break
         else:
             # Simulate or manually pick for other team
-            available_players = dfPlayerProjStats[~dfPlayerProjStats['Player'].isin(dfDraft['Player'])]
+            available_players = dfPlayerProjStats[
+                ~dfPlayerProjStats['Player'].isin(st.session_state.dfDraft['Player'])
+            ]
             if len(available_players) == 0:
                 st.write("No more available players.")
                 return
@@ -206,8 +221,7 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             st.session_state.pick_number += 1
 
 # Streamlit App
-st.title("🏆Team Amir for the win🏆")
-st.subheader("Fantasy Basketball Draft Simulator🏀")
+st.title("Fantasy Basketball Draft Simulator")
 
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
@@ -351,7 +365,30 @@ if uploaded_file is not None:
         # Display user's team
         dfMyTeamDraft = getTeamDraft(st.session_state.dfDraft, myTeamName)
         st.subheader("Your Team:")
-        st.dataframe(dfMyTeamDraft)
+        
+        # Calculate team totals and averages
+        team_totals = dfMyTeamDraft[stats_categories].sum(numeric_only=True)
+        team_averages = dfMyTeamDraft[AVERAGE_STATS].mean(numeric_only=True)
+        # Combine totals and averages
+        team_stats = team_totals.copy()
+        team_stats.update(team_averages)
+
+        # Create DataFrame for team stats
+        dfTeamStats = pd.DataFrame([team_stats], columns=stats_categories)
+        dfTeamStats['Player'] = 'Team Totals'
+        dfTeamStats['Team'] = ''
+        dfTeamStats = dfTeamStats[draft_columns[1:]]
+
+        # Create DataFrame for target goals
+        dfTargetGoals = pd.DataFrame([TARGET_GOALS], columns=stats_categories)
+        dfTargetGoals['Player'] = 'Target Goals'
+        dfTargetGoals['Team'] = ''
+        dfTargetGoals = dfTargetGoals[draft_columns[1:]]
+
+        # Append team stats and target goals to your team DataFrame
+        dfMyTeamDisplay = pd.concat([dfMyTeamDraft[draft_columns[1:]], dfTeamStats, dfTargetGoals], ignore_index=True)
+
+        st.dataframe(dfMyTeamDisplay)
 
         # Display team rankings
         dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft, team_order)
