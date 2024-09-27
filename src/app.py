@@ -7,7 +7,7 @@ import random
 # Definitions
 numTeams = 8
 numPlayersPerTeam = 13
-nTopSelections = 40
+nTopSelections = 60
 
 # Summary and Average Stats
 SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "3PTM"]
