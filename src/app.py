@@ -7,6 +7,7 @@ import random
 # Definitions
 numTeams = 8
 numPlayersPerTeam = 13
+nTopSelections = 40
 
 # Summary and Average Stats
 SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "3PTM"]
@@ -188,7 +189,7 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             if mode == "Manual Input":
                 st.subheader(f"{team_name}'s Turn to Pick")
                 # Show top available players
-                top_available_players = available_players.head(20)
+                top_available_players = available_players.head(nTopSelections)
                 # st.write("Top Available Players for Other Teams:")
                 #st.dataframe(top_available_players)
                 # Allow user to select a player for the other team
@@ -306,8 +307,8 @@ if uploaded_file is not None:
         ]
 
         if not available_players.empty:
-            # Show top 20 available players
-            top_available_players = available_players.head(20)
+            # Show top nTopSelections available players
+            top_available_players = available_players.head(nTopSelections)
             #st.write("Top Available Players:")
             #st.dataframe(top_available_players)
 
