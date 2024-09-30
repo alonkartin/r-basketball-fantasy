@@ -7,7 +7,6 @@ import random
 # Definitions
 numTeams = 8
 numPlayersPerTeam = 13
-nTopSelections = 60
 
 # Summary and Average Stats
 SUMMARY_STATS = ["PTS", "REB", "AST", "ST", "BLK", "3PTM"]
@@ -189,9 +188,9 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             if mode == "Manual Input":
                 st.subheader(f"{team_name}'s Turn to Pick")
                 # Show top available players
-                top_available_players = available_players.head(nTopSelections)
-                # st.write("Top Available Players for Other Teams:")
-                #st.dataframe(top_available_players)
+                top_available_players = available_players.head(20)
+                st.write("Top Available Players for Other Teams:")
+                st.dataframe(top_available_players)
                 # Allow user to select a player for the other team
                 player_names = top_available_players['Player'].tolist()
                 selected_player = st.selectbox(f"Select a player for {team_name}:", player_names, key=f"select_{pick_number}")
@@ -213,6 +212,9 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
                 selected_player = selected_player_row.iloc[0]['Player']
                 player_index = selected_player_row.index[0]
 
+            # Before making changes, save the current state for Undo functionality
+            save_current_state()
+
             # Update the draft
             dfDraft = updateDraft(dfDraft, team_name, dfPlayerProjStats, player_index)
             teamPlayerCountDct[team_name] += 1
@@ -221,14 +223,65 @@ def simulate_or_manual_picks(dfDraft, dfPlayerProjStats, teamPlayerCountDct, mod
             st.session_state.teamPlayerCountDct = teamPlayerCountDct
             st.session_state.pick_number += 1
 
-st.set_page_config(
-    page_title="Fantasy Basketball Draft Simulator",
-    page_icon="🏆", 
-    layout="wide",
-)
+# Function to save the current state before making changes
+def save_current_state():
+    # Create a snapshot of the current state
+    state_snapshot = {
+        'dfDraft': st.session_state.dfDraft.copy(),
+        'teamPlayerCountDct': st.session_state.teamPlayerCountDct.copy(),
+        'pick_number': st.session_state.pick_number,
+    }
+    # Append to draft history
+    st.session_state.draft_history.append(state_snapshot)
+    # Clear redo stack since we have a new action
+    st.session_state.redo_stack.clear()
+
+# Function to undo the last action
+def undo_action():
+    if st.session_state.draft_history:
+        # Save current state to redo stack
+        current_state = {
+            'dfDraft': st.session_state.dfDraft.copy(),
+            'teamPlayerCountDct': st.session_state.teamPlayerCountDct.copy(),
+            'pick_number': st.session_state.pick_number,
+        }
+        st.session_state.redo_stack.append(current_state)
+        # Restore the last state from history
+        last_state = st.session_state.draft_history.pop()
+        st.session_state.dfDraft = last_state['dfDraft']
+        st.session_state.teamPlayerCountDct = last_state['teamPlayerCountDct']
+        st.session_state.pick_number = last_state['pick_number']
+        st.success("Undid the last action.")
+    else:
+        st.warning("Nothing to undo.")
+
+# Function to redo the last undone action
+def redo_action():
+    if st.session_state.redo_stack:
+        # Save current state to draft history
+        current_state = {
+            'dfDraft': st.session_state.dfDraft.copy(),
+            'teamPlayerCountDct': st.session_state.teamPlayerCountDct.copy(),
+            'pick_number': st.session_state.pick_number,
+        }
+        st.session_state.draft_history.append(current_state)
+        # Restore the next state from redo stack
+        next_state = st.session_state.redo_stack.pop()
+        st.session_state.dfDraft = next_state['dfDraft']
+        st.session_state.teamPlayerCountDct = next_state['teamPlayerCountDct']
+        st.session_state.pick_number = next_state['pick_number']
+        st.success("Redid the last undone action.")
+    else:
+        st.warning("Nothing to redo.")
 
 # Streamlit App
 st.title("Fantasy Basketball Draft Simulator")
+
+# Initialize session state for Undo/Redo functionality
+if 'draft_history' not in st.session_state:
+    st.session_state.draft_history = []
+if 'redo_stack' not in st.session_state:
+    st.session_state.redo_stack = []
 
 # Upload player projection CSV file
 uploaded_file = st.file_uploader("Choose a player projection CSV file", type="csv")
@@ -288,6 +341,13 @@ if uploaded_file is not None:
         myTeamIndex = st.session_state.myTeamIndex
         team_order = st.session_state.team_order
 
+        # Undo and Redo Buttons
+        col1, col2 = st.columns(2)
+        if col1.button("Undo"):
+            undo_action()
+        if col2.button("Redo"):
+            redo_action()
+
         # Simulate or manually pick for other teams up to user's turn
         simulate_or_manual_picks(
             st.session_state.dfDraft,
@@ -307,10 +367,10 @@ if uploaded_file is not None:
         ]
 
         if not available_players.empty:
-            # Show top nTopSelections available players
-            top_available_players = available_players.head(nTopSelections)
-            #st.write("Top Available Players:")
-            #st.dataframe(top_available_players)
+            # Show top 20 available players
+            top_available_players = available_players.head(20)
+            st.write("Top Available Players:")
+            st.dataframe(top_available_players)
 
             # Allow user to select a player
             player_names = top_available_players['Player'].tolist()
@@ -333,6 +393,9 @@ if uploaded_file is not None:
             st.dataframe(dfMyTeamRankings)
 
             if st.button('Draft Player'):
+                # Before making changes, save the current state for Undo functionality
+                save_current_state()
+
                 # Find the index of the selected player in dfPlayerProjStats
                 player_index = dfPlayerProjStats[dfPlayerProjStats['Player'] == selected_player].index[0]
 
@@ -353,6 +416,9 @@ if uploaded_file is not None:
                 # Update pick number
                 st.session_state.pick_number += 1
 
+                # Clear redo stack after new action
+                st.session_state.redo_stack.clear()
+
                 # Success message
                 st.success(f"You have drafted {selected_player}.")
 
@@ -372,7 +438,7 @@ if uploaded_file is not None:
         # Display user's team
         dfMyTeamDraft = getTeamDraft(st.session_state.dfDraft, myTeamName)
         st.subheader("Your Team:")
-        
+
         # Calculate team totals and averages
         team_totals = dfMyTeamDraft[stats_categories].sum(numeric_only=True)
         team_averages = dfMyTeamDraft[AVERAGE_STATS].mean(numeric_only=True)
@@ -400,10 +466,8 @@ if uploaded_file is not None:
         # Display team rankings
         dfAllTeamsDraftStats = getAllTeamsDraftStats(st.session_state.dfDraft, team_order)
         dfRankings = getTeamRankings(dfAllTeamsDraftStats, myTeamName)
-        # Optionally display the full draft
-        if st.checkbox("Show Current Team Rankings"):
-            st.subheader("Current Team Rankings:")
-            st.dataframe(dfRankings)
+        st.subheader("Current Team Rankings:")
+        st.dataframe(dfRankings)
 
         # Optionally display the full draft
         if st.checkbox("Show Full Draft Results"):
